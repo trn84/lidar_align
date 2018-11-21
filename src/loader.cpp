@@ -1,4 +1,8 @@
 #include <geometry_msgs/TransformStamped.h>
+#include <tf2_msgs/TFMessage.h>
+#include <tf2_ros/transform_listener.h>
+#include <ros/ros.h>
+
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 
@@ -119,29 +123,35 @@ bool Loader::loadTformFromROSBag(const std::string& bag_path, Odom* odom) {
     return false;
   }
 
+
+  geometry_msgs::TransformStamped transform_msg;
   std::vector<std::string> types;
-  types.push_back(std::string("geometry_msgs/TransformStamped"));
-  rosbag::View view(bag, rosbag::TypeQuery(types));
+  types.push_back(std::string("/tf"));
+  rosbag::View view(bag, rosbag::TopicQuery(types));
 
   size_t tform_num = 0;
   for (const rosbag::MessageInstance& m : view) {
     std::cout << " Loading transform: \e[1m" << tform_num++
               << "\e[0m from ros bag" << '\r' << std::flush;
-
-    geometry_msgs::TransformStamped transform_msg =
-        *(m.instantiate<geometry_msgs::TransformStamped>());
-
-    Timestamp stamp = transform_msg.header.stamp.sec * 1000000ll +
-                      transform_msg.header.stamp.nsec / 1000ll;
-
-    Transform T(Transform::Translation(transform_msg.transform.translation.x,
-                                       transform_msg.transform.translation.y,
-                                       transform_msg.transform.translation.z),
-                Transform::Rotation(transform_msg.transform.rotation.w,
-                                    transform_msg.transform.rotation.x,
-                                    transform_msg.transform.rotation.y,
-                                    transform_msg.transform.rotation.z));
-    odom->addTransformData(stamp, T);
+      //instantiate bag message
+      tf2_msgs::TFMessage::ConstPtr tf_info = m.instantiate<tf2_msgs::TFMessage>();
+      for(int i=0; i < tf_info->transforms.size();i++){
+        transform_msg = tf_info->transforms[i];
+        if (transform_msg.header.frame_id == "world"){
+          if (transform_msg.child_frame_id == "base_link"){
+            Timestamp stamp = transform_msg.header.stamp.sec * 1000000ll +
+                        transform_msg.header.stamp.nsec / 1000ll;
+            Transform T(Transform::Translation(transform_msg.transform.translation.x,
+                                        transform_msg.transform.translation.y,
+                                        transform_msg.transform.translation.z),
+            Transform::Rotation(transform_msg.transform.rotation.w,
+                                      transform_msg.transform.rotation.x,
+                                      transform_msg.transform.rotation.y,
+                                      transform_msg.transform.rotation.z));
+            odom->addTransformData(stamp, T);
+          }
+        }
+      }
   }
 
   if (odom->empty()) {

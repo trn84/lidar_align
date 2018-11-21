@@ -1,3 +1,5 @@
+# This is a fork that was modified to run with odometry sources directly from the /tf (like world->base_link). It is not running correctly right now.
+
 # lidar_align
 
 ## A simple method for finding the extrinsic calibration between a 3D lidar and a 6-dof pose sensor
